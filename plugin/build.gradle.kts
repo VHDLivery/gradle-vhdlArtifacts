@@ -4,7 +4,7 @@ plugins {
     `maven-publish`
 }
 
-group = "com.github.logicllama.gradle.vhdl"
+group = "com.github.logicllama.vhdl"
 version = "1.0.0"
 
 repositories {

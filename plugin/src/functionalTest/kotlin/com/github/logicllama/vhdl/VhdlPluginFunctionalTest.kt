@@ -1,4 +1,4 @@
-package com.github.logicllama.gradle.vhdl
+package com.github.logicllama.vhdl
 
 import java.io.File
 import kotlin.test.assertTrue
@@ -7,7 +7,7 @@ import org.gradle.testkit.runner.GradleRunner
 import org.junit.jupiter.api.io.TempDir
 
 /**
- * A simple functional test for the 'package com.github.logicllama.gradle.vhdl' plugin.
+ * A simple functional test for the 'package com.github.logicllama.vhdl' plugin.
  */
 class VhdlPluginFunctionalTest {
 
@@ -22,7 +22,7 @@ class VhdlPluginFunctionalTest {
         settingsFile.writeText("")
         buildFile.writeText("""
             plugins {
-                id('package com.github.logicllama.gradle.vhdl')
+                id('package com.github.logicllama.vhdl')
             }
         """.trimIndent())
 
@@ -35,6 +35,6 @@ class VhdlPluginFunctionalTest {
         val result = runner.build()
 
         // Verify the result
-        assertTrue(result.output.contains("Hello from plugin 'package com.github.logicllama.gradle.vhdl'"))
+        assertTrue(result.output.contains("Hello from plugin 'package com.github.logicllama.vhdl'"))
     }
 }

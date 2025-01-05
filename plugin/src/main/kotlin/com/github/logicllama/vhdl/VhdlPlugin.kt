@@ -1,4 +1,4 @@
-package com.github.logicllama.gradle.vhdl
+package com.github.logicllama.vhdl
 
 import org.gradle.api.Project
 import org.gradle.api.Plugin
@@ -11,7 +11,7 @@ class VhdlPlugin: Plugin<Project> {
         // Register a task
         project.tasks.register("greeting") { task ->
             task.doLast {
-                println("Hello from plugin 'com.github.logicllama.gradle.vhdl'")
+                println("Hello from plugin 'com.github.logicllama.vhdl'")
             }
         }
     }
