@@ -13,6 +13,9 @@ repositories {
 }
 
 dependencies {
+    implementation(gradleApi())
+    implementation(localGroovy())
+    //implementation("org.gradle:gradle-maven-publish")
     // Use the Kotlin JUnit 5 integration.
     testImplementation("org.jetbrains.kotlin:kotlin-test-junit5")
 
