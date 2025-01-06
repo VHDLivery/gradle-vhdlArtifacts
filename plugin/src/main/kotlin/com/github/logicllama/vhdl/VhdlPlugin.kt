@@ -26,32 +26,34 @@ class VhdlPlugin: Plugin<Project> {
 
         val distributions = project.extensions.getByType(DistributionContainer::class.java)
 
-        val modSrcDistribution = distributions.create("modSrc") {
-            it.distributionBaseName.set(project.name)
-            it.distributionClassifier.set("modSrc")
-            it.contents{ content ->
+        val modSrcDistribution = distributions.create("modSrc") { dist ->
+            dist.distributionBaseName.set(project.name)
+            dist.distributionClassifier.set("modSrc")
+            dist.contents{ content ->
                 // Into libName/modName
                 content.into("${project.parent?.name ?: "work"}/${project.name}") {
                     // Place the entire 'src' directory into the 'src' folder within the distribution
-                    content.into("src") {
-                        content.from("src")
+                    it.into("src") {
+                        it.from("src")
                     }
                     // Add the readme.md file to the root of the distribution
-                    content.from("readme.md")
-                    content.includeEmptyDirs = false
+                    it.from("readme.md")
+                    it.includeEmptyDirs = false
                 }
             }
+            // project.logger.lifecycle("Test")
         }
 
-        val libSrcDistribution = distributions.create("libSrc") {
-            it.distributionBaseName.set(project.name)
-            it.distributionClassifier.set("libSrc")
-            it.contents{ content ->
+        val libSrcDistribution = distributions.create("libSrc") {dist ->
+            dist.distributionBaseName.set(project.name)
+            dist.distributionClassifier.set("libSrc")
+            dist.contents{ content ->
                 // Into libName/modName
-                content.into({project.parent?.name ?: "work"}) {
+                content.into("${project.parent?.name ?: "work"}") {
+                    // TODO: Add library sources
                     // Add the readme.md file to the root of the distribution
-                    content.from("readme.md")
-                    content.includeEmptyDirs = false
+                    it.from("readme.md")
+                    it.includeEmptyDirs = false
                 }
             }
         }
@@ -67,8 +69,8 @@ class VhdlPlugin: Plugin<Project> {
         project.tasks.named(libSrcDistribution.name + "DistZip", Zip::class.java) {
             it.group = "VHDL"
             it.description = "Packages the sources code as a library into a ZIP file for publishing or distribution."
-            it.archiveFileName.set("${libSrcDistribution.distributionBaseName}" +
-                    "-${project.version}-${libSrcDistribution.distributionClassifier}.zip")
+            it.archiveFileName.set("${libSrcDistribution.distributionBaseName.get()}" +
+                    "-${project.version}-${libSrcDistribution.distributionClassifier.get()}.zip")
             it.destinationDirectory.set(project.layout.buildDirectory.dir("distributions"))
         }
 
