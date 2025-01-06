@@ -41,7 +41,7 @@ class VhdlPlugin: Plugin<Project> {
                     it.includeEmptyDirs = false
                 }
             }
-            // project.logger.lifecycle("Test")
+            // TODO: Add info using project.logger.lifecycle("Lorem Ipsum")
         }
 
         val libSrcDistribution = distributions.create("libSrc") {dist ->
