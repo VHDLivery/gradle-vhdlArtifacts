@@ -24,6 +24,25 @@ class VhdlPlugin: Plugin<Project> {
             }
         }
 
+        // Custom Configurations
+        val rtlModSrcConfig = project.configurations.create("rtlModSrc") {
+            it.isCanBeResolved = true
+            it.isCanBeConsumed = false
+            it.isTransitive = true
+            it.description = "Custom Configuration for VHDL module source code packages used for RTL"
+        }
+
+        // Task to list all resolved artifacts of 'rtlModSrc' configuration
+        project.tasks.register("listRtlModSrcDependencies") {
+            it.group = "VHDL"
+            it.description = "List all resolved artifacts of 'rtlModSrc' configuration"
+            println("Resolved Artifacts in '${rtlModSrcConfig.name}':")
+            rtlModSrcConfig.resolve().forEach { artifact ->
+                println("-  ${artifact.name}")
+            }
+        }
+
+        // Custom Distributions
         val distributions = project.extensions.getByType(DistributionContainer::class.java)
 
         val modSrcDistribution = distributions.create("modSrc") { dist ->
@@ -41,23 +60,24 @@ class VhdlPlugin: Plugin<Project> {
                     it.includeEmptyDirs = false
                 }
             }
-            // TODO: Add info using project.logger.lifecycle("Lorem Ipsum")
+            // TODO: Add info using project.logger.lifecycle("Lorem Ipsum") or println
         }
 
-        val libSrcDistribution = distributions.create("libSrc") {dist ->
-            dist.distributionBaseName.set(project.name)
-            dist.distributionClassifier.set("libSrc")
-            dist.contents{ content ->
-                // Into libName/modName
-                content.into("${project.parent?.name ?: "work"}") {
-                    // TODO: Add library sources
-                    // Add the readme.md file to the root of the distribution
-                    it.from("readme.md")
-                    it.includeEmptyDirs = false
-                }
-            }
-        }
+//        val libSrcDistribution = distributions.create("libSrc") {dist ->
+//            dist.distributionBaseName.set(project.name)
+//            dist.distributionClassifier.set("libSrc")
+//            dist.contents{ content ->
+//                // Into libName/modName
+//                content.into("${project.parent?.name ?: "work"}") {
+//                    // TODO: Add library sources
+//                    // Add the readme.md file to the root of the distribution
+//                    it.from("readme.md")
+//                    it.includeEmptyDirs = false
+//                }
+//            }
+//        }
 
+        // Custom Distribution Packaging
         project.tasks.named(modSrcDistribution.name + "DistZip", Zip::class.java) {
             it.group = "VHDL"
             it.description = "Packages the sources code as a module into a ZIP file for publishing or distribution."
@@ -66,13 +86,13 @@ class VhdlPlugin: Plugin<Project> {
             it.destinationDirectory.set(project.layout.buildDirectory.dir("distributions"))
         }
 
-        project.tasks.named(libSrcDistribution.name + "DistZip", Zip::class.java) {
-            it.group = "VHDL"
-            it.description = "Packages the sources code as a library into a ZIP file for publishing or distribution."
-            it.archiveFileName.set("${libSrcDistribution.distributionBaseName.get()}" +
-                    "-${project.version}-${libSrcDistribution.distributionClassifier.get()}.zip")
-            it.destinationDirectory.set(project.layout.buildDirectory.dir("distributions"))
-        }
+//        project.tasks.named(libSrcDistribution.name + "DistZip", Zip::class.java) {
+//            it.group = "VHDL"
+//            it.description = "Packages the sources code as a library into a ZIP file for publishing or distribution."
+//            it.archiveFileName.set("${libSrcDistribution.distributionBaseName.get()}" +
+//                    "-${project.version}-${libSrcDistribution.distributionClassifier.get()}.zip")
+//            it.destinationDirectory.set(project.layout.buildDirectory.dir("distributions"))
+//        }
 
         // Configure maven-publish
 //        project.afterEvaluate {
