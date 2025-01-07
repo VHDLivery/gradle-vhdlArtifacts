@@ -32,15 +32,65 @@ class VhdlPlugin: Plugin<Project> {
             it.description = "Custom Configuration for VHDL module source code packages used for RTL"
         }
 
-        // Task to list all resolved artifacts of 'rtlModSrc' configuration
-        project.tasks.register("listRtlModSrcDependencies") {
-            it.group = "VHDL"
-            it.description = "List all resolved artifacts of 'rtlModSrc' configuration"
-            println("Resolved Artifacts in '${rtlModSrcConfig.name}':")
-            rtlModSrcConfig.resolve().forEach { artifact ->
-                println("-  ${artifact.name}")
+        fun resolveImplicitArtifacts(config: org.gradle.api.artifacts.Configuration) {
+            val classifier = "src"
+            val fileType = "zip"
+
+            if (config.allDependencies.isEmpty()) {
+                println("Configuration '${config.name}' has no dependencies to process.")
+                return
+            }
+
+            // Collect the dependencies to add first
+            val dependenciesToAdd = mutableListOf<org.gradle.api.artifacts.Dependency>()
+            config.allDependencies.forEach { dependency ->
+                dependenciesToAdd.add(project.dependencies.create(
+                    "${dependency.group}:${dependency.name}:${dependency.version}:${classifier}@${fileType}"
+                ))
+            }
+
+            // Add the dependencies to the configuration after the iteration
+            dependenciesToAdd.forEach { dep ->
+                config.dependencies.add(dep)
+                println("Added implicit dependency: $dep")
+            }
+
+            // Resolve and print resolved artifacts
+            println("Resolving artifacts in configuration '${config.name}'...")
+            try {
+                config.resolve().forEach { artifact ->
+                    println("- ${artifact.name}")
+                }
+            } catch (e: Exception) {
+                println("Failed to resolve artifacts in configuration '${config.name}': ${e.message}")
             }
         }
+
+        fun unzipResolvedArtifacts(config: org.gradle.api.artifacts.Configuration) {
+            config.resolve().forEach { artifact ->
+                // Create a copy task to unzip the artifact contents
+                project.copy {
+                    // Specify the ZIP file to unzip
+                    it.from(project.zipTree(artifact.path))
+                    // Define the destination directory
+                    it.into(project.layout.buildDirectory.dir("dependency"))
+                    // Do not include empty directories
+                    it.includeEmptyDirs = false
+                }
+            }
+        }
+
+        // Task to unzip all resolved artifacts and implicit artifacts of dependencies
+        project.tasks.register("getRtlModSrcDependencies") {
+
+            // Add task to tasks with description
+            it.group = "VHDL"
+            it.description = "Retrieve all resolved artifacts of 'rtlModSrc' configuration"
+
+            resolveImplicitArtifacts(rtlModSrcConfig)
+            unzipResolvedArtifacts(rtlModSrcConfig)
+        }
+
 
         // Custom Distributions
         val distributions = project.extensions.getByType(DistributionContainer::class.java)
