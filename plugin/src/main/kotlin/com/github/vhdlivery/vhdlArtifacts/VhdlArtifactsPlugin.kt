@@ -4,10 +4,9 @@ import org.gradle.api.Project
 import org.gradle.api.Plugin
 import org.gradle.api.distribution.DistributionContainer
 import org.gradle.api.tasks.bundling.Zip
+import org.gradle.api.publish.PublishingExtension
+import org.gradle.api.publish.maven.MavenPublication
 
-/**
- * A simple 'hello world' plugin.
- */
 class VhdlArtifactsPlugin: Plugin<Project> {
     override fun apply(project: Project) {
 
@@ -25,13 +24,12 @@ class VhdlArtifactsPlugin: Plugin<Project> {
         }
 
         // Custom Configurations
-        val rtlModSrcConfig = project.configurations.create("rtlModSrc") {
+        var rtlModSrcConfig = project.configurations.create("rtlModSrc") {
             it.isCanBeResolved = true
             it.isCanBeConsumed = false
             it.isTransitive = true
             it.description = "Custom Configuration for VHDL module source code packages used for RTL"
         }
-
         fun resolveImplicitArtifacts(config: org.gradle.api.artifacts.Configuration) {
             val classifier = "src"
             val fileType = "zip"
@@ -55,19 +53,11 @@ class VhdlArtifactsPlugin: Plugin<Project> {
                 println("Added implicit dependency: $dep")
             }
 
-            // Resolve and print resolved artifacts
-            println("Resolving artifacts in configuration '${config.name}'...")
-            try {
-                config.resolve().forEach { artifact ->
-                    println("- ${artifact.name}")
-                }
-            } catch (e: Exception) {
-                println("Failed to resolve artifacts in configuration '${config.name}': ${e.message}")
-            }
         }
 
         fun unzipResolvedArtifacts(config: org.gradle.api.artifacts.Configuration) {
-            config.resolve().forEach { artifact ->
+            rtlModSrcConfig.resolve().forEach { artifact ->
+                println("Unzipping $artifact")
                 // Create a copy task to unzip the artifact contents
                 project.copy {
                     // Specify the ZIP file to unzip
@@ -80,6 +70,18 @@ class VhdlArtifactsPlugin: Plugin<Project> {
             }
         }
 
+        fun printArtifacts(config: org.gradle.api.artifacts.Configuration) {
+            // Resolve and print resolved artifacts
+            println("Resolved artifacts in configuration '${config.name}'...")
+            try {
+                config.resolve().forEach { artifact ->
+                    println("- ${artifact}")
+                }
+            } catch (e: Exception) {
+                println("Failed to resolve artifacts in configuration '${config.name}': ${e.message}")
+            }
+        }
+
         // Task to unzip all resolved artifacts and implicit artifacts of dependencies
         project.tasks.register("getRtlModSrcDependencies") {
 
@@ -89,8 +91,15 @@ class VhdlArtifactsPlugin: Plugin<Project> {
 
             resolveImplicitArtifacts(rtlModSrcConfig)
             unzipResolvedArtifacts(rtlModSrcConfig)
+            printArtifacts(rtlModSrcConfig)
         }
 
+        project.tasks.register("printRtlSrcArtifacts") {
+            it.group = "VHDL Artifacts"
+            it.description = "Print resolved artifacts of config 'rtlModSrc'"
+
+            printArtifacts(rtlModSrcConfig)
+        }
 
         // Custom Distributions
         val distributions = project.extensions.getByType(DistributionContainer::class.java)
@@ -110,7 +119,6 @@ class VhdlArtifactsPlugin: Plugin<Project> {
                     it.includeEmptyDirs = false
                 }
             }
-            // TODO: Add info using project.logger.lifecycle("Lorem Ipsum") or println
         }
 
         // Custom Distribution Packaging
@@ -122,15 +130,43 @@ class VhdlArtifactsPlugin: Plugin<Project> {
             it.destinationDirectory.set(project.layout.buildDirectory.dir("distributions"))
         }
 
-        // Configure maven-publish
-//        project.afterEvaluate {
-//            project.extensions.configure<org.gradle.api.publish.PublishingExtension>("publishing") {
-//                publications {
-//                    create("mavenJava", org.gradle.api.publish.maven.MavenPublication::class.java) {
-//                        from(project.components.getByName("java"))
-//                    }
-//                }
-//            }
-//        }
+        val rtlModSrcConfigProvider = project.provider {
+            rtlModSrcConfig
+        }
+
+        project.extensions.configure<PublishingExtension>("publishing") { publish ->
+            publish.publications { publications ->
+                publications.create("vhdlArtifacts", MavenPublication::class.java) { publication ->
+                    publication.groupId = project.group.toString()
+                    publication.artifactId = project.name.lowercase()
+                    publication.version = project.version.toString()
+                    publication.artifact(project.tasks.named("modSrcDistZip"))
+
+                    var dependencies = VhdlConfiguration()
+                    rtlModSrcConfig.dependencies.forEach() { dependency ->
+                        //FIXME: No dependency found
+                        println("Dependency: $dependency")
+                        dependencies.addDependency(dependency)
+                    }
+                    println(dependencies)
+
+                    publication.pom.withXml { xml ->
+                        val dependenciesNode = xml.asNode().appendNode("dependencies")
+                        dependencies.getAll().forEach { dependency ->
+                            println("Added dependency $dependency")
+                            dependenciesNode.appendNode("dependency").apply {
+                                appendNode("groupId", dependency.groupId)
+                                appendNode("artifactId", dependency.artifactId)
+                                appendNode("version", dependency.version)
+                                appendNode("classifier", "src")
+                                appendNode("type", "zip")
+                            }
+                        }
+                    }
+
+                }
+            }
+        }
+
     }
 }
