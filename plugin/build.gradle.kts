@@ -4,7 +4,7 @@ plugins {
     `maven-publish`
 }
 
-group = "com.github.logicllama.vhdl"
+group = "com.github.vhdlivery.vhdlArtifacts"
 version = "1.0.0"
 
 repositories {
@@ -24,15 +24,15 @@ dependencies {
 
 gradlePlugin {
     // Define the plugin
-    website = "https://github.com/LogicLlama"
-    vcsUrl = "https://github.com/LogicLlama/gradle-vhdl"
+    website = "https://github.com/VHDLivery"
+    vcsUrl = "https://github.com/VHDLivery/gradle-vhdlArtifacts"
     plugins {
-        create("VhdlPlugin") {
+        create("VhdlArtifactsPlugin") {
             id = "${group}"
-            displayName = "Plugin for FPGA Development with VHDL"
-            description = "A plugin that helps you manage dependencies"
-            tags = listOf("hdl", "vhdl")
-            implementationClass = "${group}.VhdlPlugin"
+            displayName = "VHDL Artifacts Plugin"
+            description = "Plugin to manage artifacts of VHDL source code for FPGA development"
+            tags = listOf("hdl", "vhdl", "src", "source code", "artifacts")
+            implementationClass = "${group}.VhdlArtifactsPlugin"
         }
     }
 }

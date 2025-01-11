@@ -1,4 +1,4 @@
-package com.github.logicllama.vhdl
+package com.github.vhdlivery.vhdlArtifacts
 
 import org.gradle.api.Project
 import org.gradle.api.Plugin
@@ -8,19 +8,19 @@ import org.gradle.api.tasks.bundling.Zip
 /**
  * A simple 'hello world' plugin.
  */
-class VhdlPlugin: Plugin<Project> {
+class VhdlArtifactsPlugin: Plugin<Project> {
     override fun apply(project: Project) {
 
         // Apply required plugins
         project.pluginManager.apply("distribution")
-//        project.pluginManager.apply("maven-publish")
+        project.pluginManager.apply("maven-publish")
 
         // Register a task
         project.tasks.register("greeting") {
-            it.group = "VHDL"
+            it.group = "VHDL Artifacts"
             it.description = "Greeting from this Plugin"
             it.doLast {
-                println("Hello from plugin 'com.github.logicllama.vhdl'")
+                println("Hello from plugin 'com.github.vhdlivery.vhdlArtifacts'")
             }
         }
 
@@ -84,7 +84,7 @@ class VhdlPlugin: Plugin<Project> {
         project.tasks.register("getRtlModSrcDependencies") {
 
             // Add task to tasks with description
-            it.group = "VHDL"
+            it.group = "VHDL Artifacts"
             it.description = "Retrieve all resolved artifacts of 'rtlModSrc' configuration"
 
             resolveImplicitArtifacts(rtlModSrcConfig)
@@ -113,36 +113,14 @@ class VhdlPlugin: Plugin<Project> {
             // TODO: Add info using project.logger.lifecycle("Lorem Ipsum") or println
         }
 
-//        val libSrcDistribution = distributions.create("libSrc") {dist ->
-//            dist.distributionBaseName.set(project.name)
-//            dist.distributionClassifier.set("libSrc")
-//            dist.contents{ content ->
-//                // Into libName/modName
-//                content.into("${project.parent?.name ?: "work"}") {
-//                    // TODO: Add library sources
-//                    // Add the readme.md file to the root of the distribution
-//                    it.from("readme.md")
-//                    it.includeEmptyDirs = false
-//                }
-//            }
-//        }
-
         // Custom Distribution Packaging
         project.tasks.named(modSrcDistribution.name + "DistZip", Zip::class.java) {
-            it.group = "VHDL"
+            it.group = "VHDL Artifacts"
             it.description = "Packages the sources code as a module into a ZIP file for publishing or distribution."
             it.archiveFileName.set("${modSrcDistribution.distributionBaseName.get()}-" +
                     "${project.version}-${modSrcDistribution.distributionClassifier.get()}.zip")
             it.destinationDirectory.set(project.layout.buildDirectory.dir("distributions"))
         }
-
-//        project.tasks.named(libSrcDistribution.name + "DistZip", Zip::class.java) {
-//            it.group = "VHDL"
-//            it.description = "Packages the sources code as a library into a ZIP file for publishing or distribution."
-//            it.archiveFileName.set("${libSrcDistribution.distributionBaseName.get()}" +
-//                    "-${project.version}-${libSrcDistribution.distributionClassifier.get()}.zip")
-//            it.destinationDirectory.set(project.layout.buildDirectory.dir("distributions"))
-//        }
 
         // Configure maven-publish
 //        project.afterEvaluate {

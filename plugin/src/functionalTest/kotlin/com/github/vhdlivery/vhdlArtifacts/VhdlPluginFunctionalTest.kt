@@ -1,4 +1,4 @@
-package com.github.logicllama.vhdl
+package com.github.vhdlivery.vhdlArtifacts
 
 import java.io.File
 import kotlin.test.assertTrue
@@ -7,9 +7,9 @@ import org.gradle.testkit.runner.GradleRunner
 import org.junit.jupiter.api.io.TempDir
 
 /**
- * A simple functional test for the 'package com.github.logicllama.vhdl' plugin.
+ * A simple functional test for the 'package com.github.vhdlivery.vhdlArtifacts' plugin.
  */
-class VhdlPluginFunctionalTest {
+class VhdlArtifactsPluginFunctionalTest {
 
     @field:TempDir
     lateinit var projectDir: File
@@ -22,7 +22,7 @@ class VhdlPluginFunctionalTest {
         settingsFile.writeText("")
         buildFile.writeText("""
             plugins {
-                id('package com.github.logicllama.vhdl')
+                id('package com.github.vhdlivery.vhdlArtifacts')
             }
         """.trimIndent())
 
@@ -35,6 +35,6 @@ class VhdlPluginFunctionalTest {
         val result = runner.build()
 
         // Verify the result
-        assertTrue(result.output.contains("Hello from plugin 'package com.github.logicllama.vhdl'"))
+        assertTrue(result.output.contains("Hello from plugin 'package com.github.vhdlivery.vhdlArtifacts'"))
     }
 }
