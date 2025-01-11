@@ -28,7 +28,7 @@ class VhdlArtifactsPlugin: Plugin<Project> {
             it.isCanBeResolved = true
             it.isCanBeConsumed = false
             it.isTransitive = true
-            it.description = "Custom Configuration for VHDL module source code packages used for RTL"
+            it.description = "Custom Configuration for VHDL module source code artifacts used for RTL"
         }
         fun resolveImplicitArtifacts(config: org.gradle.api.artifacts.Configuration) {
             val classifier = "src"
@@ -48,16 +48,18 @@ class VhdlArtifactsPlugin: Plugin<Project> {
             }
 
             // Add the dependencies to the configuration after the iteration
+            println("Adding implicit artifacts to configuration '${config.name}'")
             dependenciesToAdd.forEach { dep ->
                 config.dependencies.add(dep)
-                println("Added implicit dependency: $dep")
+                println("- ${dep}:${classifier}@${fileType}")
             }
 
         }
 
         fun unzipResolvedArtifacts(config: org.gradle.api.artifacts.Configuration) {
+            println("Unzipping artifacts...")
             config.resolve().forEach { artifact ->
-                println("Unzipping $artifact")
+                println("- $artifact")
                 // Create a copy task to unzip the artifact contents
                 project.copy {
                     // Specify the ZIP file to unzip
@@ -68,37 +70,6 @@ class VhdlArtifactsPlugin: Plugin<Project> {
                     it.includeEmptyDirs = false
                 }
             }
-        }
-
-        fun printArtifacts(config: org.gradle.api.artifacts.Configuration) {
-            // Resolve and print resolved artifacts
-            println("Resolved artifacts in configuration '${config.name}'...")
-            try {
-                config.resolve().forEach { artifact ->
-                    println("- ${artifact}")
-                }
-            } catch (e: Exception) {
-                println("Failed to resolve artifacts in configuration '${config.name}': ${e.message}")
-            }
-        }
-
-        // Task to unzip all resolved artifacts and implicit artifacts of dependencies
-        project.tasks.register("getRtlModSrcDependencies") {
-
-            // Add task to tasks with description
-            it.group = "VHDL Artifacts"
-            it.description = "Retrieve all resolved artifacts of 'rtlModSrc' configuration"
-
-            resolveImplicitArtifacts(rtlModSrcConfig)
-            unzipResolvedArtifacts(rtlModSrcConfig)
-            printArtifacts(rtlModSrcConfig)
-        }
-
-        project.tasks.register("printRtlSrcArtifacts") {
-            it.group = "VHDL Artifacts"
-            it.description = "Print resolved artifacts of config 'rtlModSrc'"
-
-            printArtifacts(rtlModSrcConfig)
         }
 
         // Custom Distributions
@@ -123,8 +94,8 @@ class VhdlArtifactsPlugin: Plugin<Project> {
 
         // Custom Distribution Packaging
         project.tasks.named(modSrcDistribution.name + "DistZip", Zip::class.java) {
-            it.group = "VHDL Artifacts"
-            it.description = "Packages the sources code as a module into a ZIP file for publishing or distribution."
+//            it.group = "VHDL Artifacts"
+//            it.description = "Packages the sources code as a module into a ZIP file for publishing or distribution."
             it.archiveFileName.set("${modSrcDistribution.distributionBaseName.get()}-" +
                     "${project.version}-${modSrcDistribution.distributionClassifier.get()}.zip")
             it.destinationDirectory.set(project.layout.buildDirectory.dir("distributions"))
@@ -133,6 +104,8 @@ class VhdlArtifactsPlugin: Plugin<Project> {
         val vhdlDependencies = VhdlConfiguration()
 
         project.afterEvaluate {
+            resolveImplicitArtifacts(rtlModSrcConfig)
+            unzipResolvedArtifacts(rtlModSrcConfig)
             rtlModSrcConfig.resolvedConfiguration.firstLevelModuleDependencies.forEach { dependency ->
                 vhdlDependencies.add(VhdlDependency(dependency))
             }
@@ -142,7 +115,6 @@ class VhdlArtifactsPlugin: Plugin<Project> {
             publish.publications { publications ->
                 publications.create("vhdlArtifacts", MavenPublication::class.java) { publication ->
                     project.afterEvaluate {
-                        print("Publishing to ${project.group} ${project.version}")
                         publication.groupId = project.group.toString()
                         publication.artifactId = project.name.lowercase()
                         publication.version = project.version.toString()
