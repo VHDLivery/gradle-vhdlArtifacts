@@ -24,7 +24,7 @@ class VhdlArtifactsPlugin: Plugin<Project> {
         }
 
         // Custom Configurations
-        var rtlModSrcConfig = project.configurations.create("rtlModSrc") {
+        val rtlModSrcConfig = project.configurations.create("rtlModSrc") {
             it.isCanBeResolved = true
             it.isCanBeConsumed = false
             it.isTransitive = true
@@ -56,7 +56,7 @@ class VhdlArtifactsPlugin: Plugin<Project> {
         }
 
         fun unzipResolvedArtifacts(config: org.gradle.api.artifacts.Configuration) {
-            rtlModSrcConfig.resolve().forEach { artifact ->
+            config.resolve().forEach { artifact ->
                 println("Unzipping $artifact")
                 // Create a copy task to unzip the artifact contents
                 project.copy {
@@ -130,30 +130,30 @@ class VhdlArtifactsPlugin: Plugin<Project> {
             it.destinationDirectory.set(project.layout.buildDirectory.dir("distributions"))
         }
 
-        val rtlModSrcConfigProvider = project.provider {
-            rtlModSrcConfig
+        val vhdlDependencies = VhdlConfiguration()
+
+        project.afterEvaluate {
+            rtlModSrcConfig.resolvedConfiguration.firstLevelModuleDependencies.forEach { dependency ->
+                vhdlDependencies.add(VhdlDependency(dependency))
+            }
         }
 
         project.extensions.configure<PublishingExtension>("publishing") { publish ->
             publish.publications { publications ->
                 publications.create("vhdlArtifacts", MavenPublication::class.java) { publication ->
-                    publication.groupId = project.group.toString()
-                    publication.artifactId = project.name.lowercase()
-                    publication.version = project.version.toString()
-                    publication.artifact(project.tasks.named("modSrcDistZip"))
-
-                    var dependencies = VhdlConfiguration()
-                    rtlModSrcConfig.dependencies.forEach() { dependency ->
-                        //FIXME: No dependency found
-                        println("Dependency: $dependency")
-                        dependencies.addDependency(dependency)
+                    project.afterEvaluate {
+                        print("Publishing to ${project.group} ${project.version}")
+                        publication.groupId = project.group.toString()
+                        publication.artifactId = project.name.lowercase()
+                        publication.version = project.version.toString()
+                        publication.artifact(project.tasks.named("modSrcDistZip"))
                     }
-                    println(dependencies)
 
                     publication.pom.withXml { xml ->
+                        println("Adding transitive dependencies to pom file...")
                         val dependenciesNode = xml.asNode().appendNode("dependencies")
-                        dependencies.getAll().forEach { dependency ->
-                            println("Added dependency $dependency")
+                        vhdlDependencies.getAll().forEach { dependency ->
+                            println("- ${dependency.groupId}:${dependency.artifactId}:${dependency.version}:src@zip")
                             dependenciesNode.appendNode("dependency").apply {
                                 appendNode("groupId", dependency.groupId)
                                 appendNode("artifactId", dependency.artifactId)

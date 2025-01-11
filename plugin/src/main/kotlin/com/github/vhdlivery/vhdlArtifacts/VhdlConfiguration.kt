@@ -1,16 +1,12 @@
 package com.github.vhdlivery.vhdlArtifacts
 
 data class VhdlConfiguration(
-    val dependencies: List<VhdlDependency> = mutableListOf()
+    val dependencies: MutableList<VhdlDependency> = mutableListOf()
 ) {
-    // Add a dependency to the configuration
-    fun addDependency(dependency: VhdlDependency) {
-        (dependencies as MutableList).add(dependency)
-    }
 
     // Add a dependency from a Gradle Dependency object
-    fun addDependency(dependency: org.gradle.api.artifacts.Dependency) {
-        addDependency(VhdlDependency(dependency))
+    fun add(dependency: VhdlDependency) {
+        dependencies.add(dependency)
     }
 
     // Get all dependencies as a List
