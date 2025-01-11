@@ -93,9 +93,7 @@ class VhdlArtifactsPlugin: Plugin<Project> {
         }
 
         // Custom Distribution Packaging
-        project.tasks.named(modSrcDistribution.name + "DistZip", Zip::class.java) {
-//            it.group = "VHDL Artifacts"
-//            it.description = "Packages the sources code as a module into a ZIP file for publishing or distribution."
+        val modSrcDistZip = project.tasks.named(modSrcDistribution.name + "DistZip", Zip::class.java) {
             it.archiveFileName.set("${modSrcDistribution.distributionBaseName.get()}-" +
                     "${project.version}-${modSrcDistribution.distributionClassifier.get()}.zip")
             it.destinationDirectory.set(project.layout.buildDirectory.dir("distributions"))
@@ -118,7 +116,7 @@ class VhdlArtifactsPlugin: Plugin<Project> {
                         publication.groupId = project.group.toString()
                         publication.artifactId = project.name.lowercase()
                         publication.version = project.version.toString()
-                        publication.artifact(project.tasks.named("modSrcDistZip"))
+                        publication.artifact(modSrcDistZip)
                     }
 
                     publication.pom.withXml { xml ->
