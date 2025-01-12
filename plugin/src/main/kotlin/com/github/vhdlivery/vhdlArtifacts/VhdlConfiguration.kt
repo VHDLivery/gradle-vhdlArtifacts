@@ -37,10 +37,10 @@ class VhdlConfiguration {
         }
 
         // Add the artifacts to the configuration after the iteration
-        println("Adding implicit artifacts to configuration '${config.name}'")
+        //println("Adding implicit artifacts to configuration '${config.name}'")
         dependenciesToAdd.forEach { dep ->
             config.dependencies.add(dep)
-            println("- ${dep}:${classifier}@${fileType}")
+            //println("- ${dep}:${classifier}@${fileType}")
         }
 
         // Resolve artifacts
