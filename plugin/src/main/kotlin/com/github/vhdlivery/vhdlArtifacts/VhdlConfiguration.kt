@@ -10,6 +10,7 @@ class VhdlConfiguration {
     val artifacts : MutableList<File> = mutableListOf()
     val classifier = "src"
     val fileType = "zip"
+    var transitive = false
 
     fun dependencies() : MutableList<VhdlDependency> {
         return dependencies
@@ -19,7 +20,14 @@ class VhdlConfiguration {
         return artifacts
     }
 
+    fun transitive() : Boolean {
+        return transitive
+    }
+
     fun resolve(project: Project, config: Configuration) {
+
+        transitive = config.isTransitive()
+
         // Collect the artifacts to add
         val dependenciesToAdd = mutableListOf<org.gradle.api.artifacts.Dependency>()
         config.allDependencies.forEach { dependency ->
