@@ -6,7 +6,6 @@ import org.gradle.api.distribution.DistributionContainer
 import org.gradle.api.tasks.bundling.Zip
 import org.gradle.api.publish.PublishingExtension
 import org.gradle.api.publish.maven.MavenPublication
-import java.io.File
 
 class VhdlArtifactsPlugin: Plugin<Project> {
     override fun apply(project: Project) {
@@ -34,48 +33,28 @@ class VhdlArtifactsPlugin: Plugin<Project> {
         }
 
         // Configuration
-        val rtlModSrcConfig = createConfig(
-            name = "rtlModSrc",
+        val rtlConfig = createConfig(
+            name = "rtl",
             description = "Custom Configuration for VHDL module source code artifacts used for RTL",
             transitive = true
         )
 
-//        fun unzipArtifacts(artifacts: MutableList<File>) {
-//            val outputDir = project.layout.buildDirectory.dir("dependency")
-//            println("Unzipping artifacts into 'build/dependency'")
-//
-//        }
-
-        val rtlModSrcCfg = VhdlConfiguration()
+        val resolvedRtlConfig = VhdlConfiguration()
         project.afterEvaluate {
-            rtlModSrcCfg.resolve(project, rtlModSrcConfig)
+            resolvedRtlConfig.resolve(project, rtlConfig)
         }
 
-        project.tasks.register("printArtifacts") {
+        val unzipRtlArtifacts = project.tasks.register("unzipRtlArtifacts") {
             it.group = "VHDL Artifacts Plugin"
-            it.description = "List all artifacts"
-
-            it.doLast {
-                println("Listing all artifacts...")
-                rtlModSrcCfg.artifacts.forEach { artifact ->
-                    println("- $artifact")
-                }
-            }
-        }
-
-        val unzipRtlModSrcArtifacts = project.tasks.register("unzipRtlModSrcArtifacts") {
-            it.group = "VHDL Artifacts Plugin"
-            it.description = "Unzip artifacts of config 'rtlModSrc' into 'build/dependency'"
+            it.description = "Unzip artifacts of config 'rtl' into 'build/dependency'"
 
             val outputDir = project.layout.buildDirectory.dir("dependency")
 
-            println("Setting taskExec to false")
-
-            it.inputs.files(rtlModSrcCfg.artifacts)
+            it.inputs.files(resolvedRtlConfig.artifacts)
             it.outputs.dir(outputDir)
 
             println("Unzipping artifacts into 'build/dependency'")
-            rtlModSrcCfg.artifacts.forEach { artifact ->
+            resolvedRtlConfig.artifacts.forEach { artifact ->
                 project.copy {
                     it.from(project.zipTree(artifact.path)) { copySpec ->
                         copySpec.eachFile { file ->
@@ -91,7 +70,7 @@ class VhdlArtifactsPlugin: Plugin<Project> {
         // Distribution
         val distributions = project.extensions.getByType(DistributionContainer::class.java)
 
-        val modSrcDistribution = distributions.create("modSrc") { dist ->
+        val srcDistribution = distributions.create("src") { dist ->
             dist.distributionBaseName.set(project.name)
             dist.distributionClassifier.set("src")
             dist.contents{ content ->
@@ -108,27 +87,27 @@ class VhdlArtifactsPlugin: Plugin<Project> {
             }
         }
 
-        val modSrcDistZip = project.tasks.named(modSrcDistribution.name + "DistZip", Zip::class.java) {
-            it.archiveFileName.set("${modSrcDistribution.distributionBaseName.get()}-" +
-                    "${project.version}-${modSrcDistribution.distributionClassifier.get()}.zip")
+        val srcDistZip = project.tasks.named(srcDistribution.name + "DistZip", Zip::class.java) {
+            it.archiveFileName.set("${srcDistribution.distributionBaseName.get()}-" +
+                    "${project.version}-${srcDistribution.distributionClassifier.get()}.zip")
             it.destinationDirectory.set(project.layout.buildDirectory.dir("distributions"))
         }
 
         // Publication
         project.extensions.configure<PublishingExtension>("publishing") { publish ->
             publish.publications { publications ->
-                publications.create("vhdlArtifacts", MavenPublication::class.java) { publication ->
+                publications.create("srcArtifact", MavenPublication::class.java) { publication ->
                     project.afterEvaluate {
                         publication.groupId = project.group.toString()
                         publication.artifactId = project.name.lowercase()
                         publication.version = project.version.toString()
-                        publication.artifact(modSrcDistZip)
+                        publication.artifact(srcDistZip)
                     }
 
                     publication.pom.withXml { xml ->
                         println("Adding transitive dependencies to pom file...")
                         val dependenciesNode = xml.asNode().appendNode("dependencies")
-                        rtlModSrcCfg.dependencies.forEach { dependency ->
+                        resolvedRtlConfig.dependencies.forEach { dependency ->
                             println("- ${dependency.groupId}:${dependency.artifactId}:${dependency.version}:src@zip")
                             dependenciesNode.appendNode("dependency").apply {
                                 appendNode("groupId", dependency.groupId)
