@@ -47,11 +47,37 @@ class VhdlArtifactsPlugin: Plugin<Project> {
             transitive = false
         )
 
+        fun checkDependencyConflicts() {
+            val rtlDeps = rtlConfig.resolvedConfiguration.resolvedArtifacts
+            val simDeps = simConfig.resolvedConfiguration.resolvedArtifacts
+
+            val allDeps = rtlDeps + simDeps
+            val groupedByModule = allDeps.groupBy { "${it.moduleVersion.id.group}:${it.moduleVersion.id.name}" }
+
+            val conflictingDeps = groupedByModule.filter { (_, versions) ->
+                versions.map { it.moduleVersion.id.version }.toSet().size > 1
+            }
+
+            if (conflictingDeps.isNotEmpty()) {
+                project.logger.lifecycle("Dependency version conflicts detected:")
+                conflictingDeps.forEach { (module, versions) ->
+                    project.logger.lifecycle("Module: $module")
+                    versions.forEach { artifact ->
+                        project.logger.lifecycle(
+                            " - Version: ${artifact.moduleVersion.id.version}"
+                        )
+                    }
+                }
+                throw RuntimeException("Dependency conflicts detected. Resolve them to proceed.")
+            }
+        }
+
         val resolvedRtlConfig = VhdlConfiguration()
         val resolvedSimConfig = VhdlConfiguration()
         project.afterEvaluate {
             resolvedRtlConfig.resolve(project, rtlConfig)
             resolvedSimConfig.resolve(project, simConfig)
+            checkDependencyConflicts()
         }
 
         fun unzipArtifacts(config: VhdlConfiguration, outputDir : Provider<Directory>) {
