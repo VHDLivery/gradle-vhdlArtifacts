@@ -3,6 +3,8 @@ package com.github.vhdlivery.vhdlArtifacts
 import org.gradle.api.Project
 import org.gradle.api.Plugin
 import org.gradle.api.distribution.DistributionContainer
+import org.gradle.api.file.Directory
+import org.gradle.api.provider.Provider
 import org.gradle.api.tasks.bundling.Zip
 import org.gradle.api.publish.PublishingExtension
 import org.gradle.api.publish.maven.MavenPublication
@@ -52,17 +54,8 @@ class VhdlArtifactsPlugin: Plugin<Project> {
             resolvedSimConfig.resolve(project, simConfig)
         }
 
-        val unzipRtlArtifacts = project.tasks.register("unzipRtlArtifacts") {
-            it.group = "VHDL Artifacts Plugin"
-            it.description = "Unzip artifacts of config 'rtl' into 'build/dependency'"
-
-            val outputDir = project.layout.buildDirectory.dir("dependency")
-
-            it.inputs.files(resolvedRtlConfig.artifacts)
-            it.outputs.dir(outputDir)
-
-            println("Unzipping rtl dependencies into 'build/dependency'")
-            resolvedRtlConfig.artifacts.forEach { artifact ->
+        fun unzipArtifacts(config: VhdlConfiguration, outputDir : Provider<Directory>) {
+            config.artifacts.forEach { artifact ->
                 project.copy {
                     it.from(project.zipTree(artifact.path)) { copySpec ->
                         copySpec.eachFile { file ->
@@ -75,6 +68,19 @@ class VhdlArtifactsPlugin: Plugin<Project> {
             }
         }
 
+        val unzipRtlArtifacts = project.tasks.register("unzipRtlArtifacts") {
+            it.group = "VHDL Artifacts Plugin"
+            it.description = "Unzip artifacts of config 'rtl' into 'build/dependency'"
+
+            val outputDir = project.layout.buildDirectory.dir("dependency")
+
+            it.inputs.files(resolvedRtlConfig.artifacts)
+            it.outputs.dir(outputDir)
+
+            println("Unzipping rtl dependencies into 'build/dependency'")
+            unzipArtifacts(resolvedRtlConfig, outputDir)
+        }
+
         val unzipSimArtifacts = project.tasks.register("unzipSimArtifacts") {
             it.group = "VHDL Artifacts Plugin"
             it.description = "Unzip artifacts of config 'sim' into 'build/dependency'"
@@ -85,17 +91,7 @@ class VhdlArtifactsPlugin: Plugin<Project> {
             it.outputs.dir(outputDir)
 
             println("Unzipping sim dependencies into 'build/dependency'")
-            resolvedSimConfig.artifacts.forEach { artifact ->
-                project.copy {
-                    it.from(project.zipTree(artifact.path)) { copySpec ->
-                        copySpec.eachFile { file ->
-                            file.path = file.path.split("/").drop(1).joinToString("/")
-                        }
-                    }
-                    it.into(outputDir)
-                    it.includeEmptyDirs = false
-                }
-            }
+            unzipArtifacts(resolvedSimConfig, outputDir)
         }
 
         // Distribution
