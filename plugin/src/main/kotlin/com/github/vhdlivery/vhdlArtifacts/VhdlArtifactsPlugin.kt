@@ -32,16 +32,24 @@ class VhdlArtifactsPlugin: Plugin<Project> {
             }
         }
 
-        // Configuration
+        // Configurations
         val rtlConfig = createConfig(
             name = "rtl",
             description = "Custom Configuration for VHDL module source code artifacts used for RTL",
             transitive = true
         )
 
+        val simConfig = createConfig(
+            name = "sim",
+            description = "Custom Configuration for VHDL module source code artifacts used for RTL",
+            transitive = false
+        )
+
         val resolvedRtlConfig = VhdlConfiguration()
+        val resolvedSimConfig = VhdlConfiguration()
         project.afterEvaluate {
             resolvedRtlConfig.resolve(project, rtlConfig)
+            resolvedSimConfig.resolve(project, simConfig)
         }
 
         val unzipRtlArtifacts = project.tasks.register("unzipRtlArtifacts") {
@@ -53,8 +61,31 @@ class VhdlArtifactsPlugin: Plugin<Project> {
             it.inputs.files(resolvedRtlConfig.artifacts)
             it.outputs.dir(outputDir)
 
-            println("Unzipping artifacts into 'build/dependency'")
+            println("Unzipping rtl dependencies into 'build/dependency'")
             resolvedRtlConfig.artifacts.forEach { artifact ->
+                project.copy {
+                    it.from(project.zipTree(artifact.path)) { copySpec ->
+                        copySpec.eachFile { file ->
+                            file.path = file.path.split("/").drop(1).joinToString("/")
+                        }
+                    }
+                    it.into(outputDir)
+                    it.includeEmptyDirs = false
+                }
+            }
+        }
+
+        val unzipSimArtifacts = project.tasks.register("unzipSimArtifacts") {
+            it.group = "VHDL Artifacts Plugin"
+            it.description = "Unzip artifacts of config 'sim' into 'build/dependency'"
+
+            val outputDir = project.layout.buildDirectory.dir("dependency")
+
+            it.inputs.files(resolvedSimConfig.artifacts)
+            it.outputs.dir(outputDir)
+
+            println("Unzipping sim dependencies into 'build/dependency'")
+            resolvedSimConfig.artifacts.forEach { artifact ->
                 project.copy {
                     it.from(project.zipTree(artifact.path)) { copySpec ->
                         copySpec.eachFile { file ->
