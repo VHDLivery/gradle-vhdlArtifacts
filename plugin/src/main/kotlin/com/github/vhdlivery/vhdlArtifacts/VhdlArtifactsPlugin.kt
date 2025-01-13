@@ -72,8 +72,8 @@ class VhdlArtifactsPlugin: Plugin<Project> {
             }
         }
 
-        val resolvedRtlConfig = VhdlConfiguration()
-        val resolvedSimConfig = VhdlConfiguration()
+        val resolvedRtlConfig = VhdlConfiguration("rtl")
+        val resolvedSimConfig = VhdlConfiguration("sim")
         project.afterEvaluate {
             resolvedRtlConfig.resolve(project, rtlConfig)
             resolvedSimConfig.resolve(project, simConfig)
@@ -81,6 +81,7 @@ class VhdlArtifactsPlugin: Plugin<Project> {
         }
 
         fun unzipArtifacts(config: VhdlConfiguration, outputDir : Provider<Directory>) {
+            println("Unzipping ${config.name} dependencies into 'build/dependency'")
             config.artifacts.forEach { artifact ->
                 project.copy {
                     it.from(project.zipTree(artifact.path)) { copySpec ->
@@ -103,7 +104,6 @@ class VhdlArtifactsPlugin: Plugin<Project> {
             it.inputs.files(resolvedRtlConfig.artifacts)
             it.outputs.dir(outputDir)
 
-            println("Unzipping rtl dependencies into 'build/dependency'")
             unzipArtifacts(resolvedRtlConfig, outputDir)
         }
 
@@ -116,7 +116,6 @@ class VhdlArtifactsPlugin: Plugin<Project> {
             it.inputs.files(resolvedSimConfig.artifacts)
             it.outputs.dir(outputDir)
 
-            println("Unzipping sim dependencies into 'build/dependency'")
             unzipArtifacts(resolvedSimConfig, outputDir)
         }
 

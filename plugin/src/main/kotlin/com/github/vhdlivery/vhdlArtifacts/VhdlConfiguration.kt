@@ -4,7 +4,9 @@ import org.gradle.api.Project
 import org.gradle.api.artifacts.Configuration
 import java.io.File
 
-class VhdlConfiguration {
+class VhdlConfiguration (
+   val name : String
+) {
 
     val dependencies : MutableList<VhdlDependency> = mutableListOf()
     val artifacts : MutableList<File> = mutableListOf()
