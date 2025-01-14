@@ -1,2 +1,2 @@
-rootProject.name = "gradle-vhdl"
+rootProject.name = "gradle-vhdlArtifacts"
 include("plugin")

@@ -65,7 +65,14 @@ tasks.named<Test>("test") {
 
 publishing {
     repositories {
-        mavenLocal()
+        maven {
+            name = "GitHubPackages"
+            url = uri("https://maven.pkg.github.com/VHDLivery/${rootProject.name}")
+            credentials {
+                username = System.getenv("GITHUB_USER")
+                password = System.getenv("GITHUB_TOKEN")
+            }
+        }
     }
     // To publish officially check https://docs.gradle.org/current/userguide/publishing_gradle_plugins.html
 }
