@@ -1,4 +1,4 @@
-package com.github.vhdlivery.vhdlArtifacts
+package io.github.vhdlivery.vhdlArtifacts
 
 import org.gradle.api.Project
 import org.gradle.api.Plugin
@@ -21,7 +21,7 @@ class VhdlArtifactsPlugin: Plugin<Project> {
             it.group = "VHDL Artifacts Plugin"
             it.description = "Greeting from this Plugin"
             it.doLast {
-                println("Hello from plugin 'com.github.vhdlivery.vhdlArtifacts'")
+                println("Hello from plugin 'io.github.vhdlivery.vhdlArtifacts'")
             }
         }
 

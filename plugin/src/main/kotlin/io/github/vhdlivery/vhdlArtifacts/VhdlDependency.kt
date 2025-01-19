@@ -1,4 +1,4 @@
-package com.github.vhdlivery.vhdlArtifacts
+package io.github.vhdlivery.vhdlArtifacts
 
 import org.gradle.api.artifacts.ResolvedDependency
 

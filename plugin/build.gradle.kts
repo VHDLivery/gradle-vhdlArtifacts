@@ -4,7 +4,7 @@ plugins {
     `maven-publish`
 }
 
-group = "com.github.vhdlivery.vhdlArtifacts"
+group = "io.github.vhdlivery.vhdlArtifacts"
 version = "1.0.0"
 
 repositories {
