@@ -16,15 +16,6 @@ class VhdlArtifactsPlugin: Plugin<Project> {
         project.pluginManager.apply("distribution")
         project.pluginManager.apply("maven-publish")
 
-        // Register a task
-        project.tasks.register("greeting") {
-            it.group = "VHDL Artifacts Plugin"
-            it.description = "Greeting from this Plugin"
-            it.doLast {
-                println("Hello from plugin 'io.github.vhdlivery.vhdlArtifacts'")
-            }
-        }
-
         fun createConfig(name : String, description : String, transitive : Boolean) : org.gradle.api.artifacts.Configuration {
             return project.configurations.create(name) {
                 it.isCanBeResolved = true
