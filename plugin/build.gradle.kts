@@ -2,6 +2,7 @@ plugins {
     `java-gradle-plugin`
     alias(libs.plugins.kotlin.jvm)
     `maven-publish`
+    id("com.gradle.plugin-publish") version "1.2.1"
 }
 
 group = "io.github.vhdlivery.vhdlArtifacts"
@@ -15,7 +16,6 @@ repositories {
 dependencies {
     implementation(gradleApi())
     implementation(localGroovy())
-    //implementation("org.gradle:gradle-maven-publish")
     // Use the Kotlin JUnit 5 integration.
     testImplementation("org.jetbrains.kotlin:kotlin-test-junit5")
 
@@ -24,43 +24,17 @@ dependencies {
 
 gradlePlugin {
     // Define the plugin
-    website = "https://github.com/VHDLivery"
+    website = "https://github.com/VHDLivery/gradle-vhdlArtifacts"
     vcsUrl = "https://github.com/VHDLivery/gradle-vhdlArtifacts"
     plugins {
         create("VhdlArtifactsPlugin") {
             id = "${group}"
             displayName = "VHDL Artifacts Plugin"
             description = "Plugin to manage artifacts of VHDL source code for FPGA development"
-            tags = listOf("hdl", "vhdl", "src", "source code", "artifacts")
+            tags = listOf("vhdl", "fpga", "embedded")
             implementationClass = "${group}.VhdlArtifactsPlugin"
         }
     }
-}
-
-// Add a source set for the functional test suite
-val functionalTestSourceSet = sourceSets.create("functionalTest") {
-}
-
-configurations["functionalTestImplementation"].extendsFrom(configurations["testImplementation"])
-configurations["functionalTestRuntimeOnly"].extendsFrom(configurations["testRuntimeOnly"])
-
-// Add a task to run the functional tests
-val functionalTest by tasks.registering(Test::class) {
-    testClassesDirs = functionalTestSourceSet.output.classesDirs
-    classpath = functionalTestSourceSet.runtimeClasspath
-    useJUnitPlatform()
-}
-
-gradlePlugin.testSourceSets.add(functionalTestSourceSet)
-
-tasks.named<Task>("check") {
-    // Run the functional tests as part of `check`
-    dependsOn(functionalTest)
-}
-
-tasks.named<Test>("test") {
-    // Use JUnit Jupiter for unit tests.
-    useJUnitPlatform()
 }
 
 publishing {
@@ -74,5 +48,4 @@ publishing {
             }
         }
     }
-    // To publish officially check https://docs.gradle.org/current/userguide/publishing_gradle_plugins.html
 }
