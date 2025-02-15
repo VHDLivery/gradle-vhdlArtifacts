@@ -142,7 +142,7 @@ class VhdlArtifactsPlugin: Plugin<Project> {
                 publications.create("srcArtifact", MavenPublication::class.java) { publication ->
                     project.afterEvaluate {
                         publication.groupId = project.group.toString()
-                        publication.artifactId = project.name.lowercase()
+                        publication.artifactId = project.name
                         publication.version = project.version.toString()
                         publication.artifact(srcDistZip)
                     }
