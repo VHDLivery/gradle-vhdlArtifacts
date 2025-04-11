@@ -8,6 +8,8 @@ import org.gradle.api.provider.Provider
 import org.gradle.api.tasks.bundling.Zip
 import org.gradle.api.publish.PublishingExtension
 import org.gradle.api.publish.maven.MavenPublication
+import java.io.File
+import java.net.URI
 
 class VhdlArtifactsPlugin: Plugin<Project> {
     override fun apply(project: Project) {
@@ -113,12 +115,32 @@ class VhdlArtifactsPlugin: Plugin<Project> {
         // Distribution
         val distributions = project.extensions.getByType(DistributionContainer::class.java)
 
+        fun getLibName(): String? {
+            try {
+                val gitDir = File(project.projectDir, ".git")
+                val gitConfigFile = File(gitDir, "config")
+
+                val lines = gitConfigFile.readLines()
+                println("Scanning module git config for libName")
+                lines.forEach { line ->
+                    if (line.contains("[remote \"origin\"]")) {
+                        val nextLine = lines.getOrNull(lines.indexOf(line) + 1)
+                        val url = nextLine?.substringAfter("url = ")?.trim()
+                        val uri = java.net.URI(url)
+                        val urlPathSegments = uri.path.split("/")
+                        return urlPathSegments[urlPathSegments.size - 2]
+                    }
+                }
+            } catch (e: Exception) {}
+            return project.parent?.name ?: "work"
+        }
+
         val srcDistribution = distributions.create("src") { dist ->
             dist.distributionBaseName.set(project.name)
             dist.distributionClassifier.set("src")
             dist.contents{ content ->
                 // Into libName/modName
-                content.into("${project.parent?.name ?: "work"}/${project.name}") {
+                content.into("${getLibName()}/${project.name}") {
                     // Place the entire 'src' directory into the 'src' folder within the distribution
                     it.into("src") {
                         it.from("src")
