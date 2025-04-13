@@ -33,9 +33,28 @@ and publishing mechanisms tailored for VHDL projects.
 
 ### Expected Structure
 
-This plugin is based on a certain file structure for VHDL projects.
-The gradle project is expected to be integrated at the root level of a VHDL library.
-Each VHDL module shall be located in a separate subdirectory, located directly under root.
+This plugin is based on a certain file structure for VHDL modules.
+There are two ways:
+
+#### Module as Root Project
+
+Each module is a Gradle project of its own.
+
+```
+module/
+├── gradle
+├── build.gradle
+├── settings.gradle
+├── src
+├── ...
+```
+
+Note: As Gradle is not aware of the library this module belongs to, the library must be either given by the user or
+`work` is used as a default library. See [Plugin Configuration](#plugin-configuration) for more info.
+
+#### Modules as Subprojects
+
+In this case, each VHDL module is located in a separate subdirectory, directly under the root project.
 For each VHDL module, a separate gradle subproject has to be setup.
 
 ```
@@ -55,6 +74,9 @@ library/
 ├── ...
 ```
 
+Note: Gradle will assume the name of the root project as the library name. This can be manually overwritten.
+See [Plugin Configuration](#plugin-configuration) for more info.
+
 ### Applying the Plugin
 
 To use the plugin, include it in your `build.gradle` file:
@@ -64,6 +86,23 @@ plugins {
   id 'io.github.vhdlivery.vhdlArtifacts' version "1.0.0"
 }
 ```
+
+### Plugin Configuration
+
+To configure the plugin, include the following in your `build.gradle`:
+
+``` groovy
+vhdlArtifacts {
+  libraryName = "example"
+}
+```
+
+The following properties are supported:
+
+| Property    | Type   | Default                       | Description                                      |
+|-------------|--------|-------------------------------|--------------------------------------------------|
+| moduleName  | string | Project Name                  | Overwrite the module name used for the artifact  |
+| libraryName | string | Parent Project Name or "work" | Overwrite the library name used for the artifact |
 
 ### Declaring Dependencies
 

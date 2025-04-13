@@ -10,7 +10,18 @@ import org.gradle.api.publish.PublishingExtension
 import org.gradle.api.publish.maven.MavenPublication
 
 class VhdlArtifactsPlugin: Plugin<Project> {
+
     override fun apply(project: Project) {
+
+        val extension = project.extensions.create("vhdlArtifacts", VhdlArtifactsExtension::class.java, project.objects)
+
+        // Set default values for properties if not provided
+        extension.moduleName.convention(project.name) // Default to project name
+        extension.libraryName.convention(project.parent?.name ?: "work") // Default to "work" if parent is null
+
+        project.afterEvaluate {
+            project.logger.lifecycle("Library = ${extension.libraryName.get()}")
+        }
 
         // Apply required plugins
         project.pluginManager.apply("distribution")
@@ -110,58 +121,58 @@ class VhdlArtifactsPlugin: Plugin<Project> {
             unzipArtifacts(resolvedSimConfig, outputDir)
         }
 
-        // Distribution
-        val distributions = project.extensions.getByType(DistributionContainer::class.java)
+        project.afterEvaluate {
+            // Distribution
+            val distributions = project.extensions.getByType(DistributionContainer::class.java)
 
-        val srcDistribution = distributions.create("src") { dist ->
-            dist.distributionBaseName.set(project.name)
-            dist.distributionClassifier.set("src")
-            dist.contents{ content ->
-                // Into libName/modName
-                content.into("${project.parent?.name ?: "work"}/${project.name}") {
-                    // Place the entire 'src' directory into the 'src' folder within the distribution
-                    it.into("src") {
-                        it.from("src")
+            val srcDistribution = distributions.create("src") { dist ->
+                dist.distributionBaseName.set(project.name)
+                dist.distributionClassifier.set("src")
+                dist.contents{ content ->
+                    val destPath = "${extension.libraryName.get()}/${extension.moduleName.get()}"
+                    content.into(destPath) {
+                        // Place the entire 'src' directory into the 'src' folder within the distribution
+                        it.into("src") {
+                            it.from("src")
+                        }
+                        // Add the readme.md file to the root of the distribution
+                        it.from("readme.md")
+                        it.includeEmptyDirs = false
                     }
-                    // Add the readme.md file to the root of the distribution
-                    it.from("readme.md")
-                    it.includeEmptyDirs = false
                 }
             }
-        }
 
-        val srcDistZip = project.tasks.named(srcDistribution.name + "DistZip", Zip::class.java) {
-            it.archiveFileName.set("${srcDistribution.distributionBaseName.get()}-" +
-                    "${project.version}-${srcDistribution.distributionClassifier.get()}.zip")
-            it.destinationDirectory.set(project.layout.buildDirectory.dir("distributions"))
-        }
+            val srcDistZip = project.tasks.named(srcDistribution.name + "DistZip", Zip::class.java) {
+                it.archiveFileName.set("${srcDistribution.distributionBaseName.get()}-" +
+                        "${project.version}-${srcDistribution.distributionClassifier.get()}.zip")
+                it.destinationDirectory.set(project.layout.buildDirectory.dir("distributions"))
+            }
 
-        // Publication
-        project.extensions.configure<PublishingExtension>("publishing") { publish ->
-            publish.publications { publications ->
-                publications.create("srcArtifact", MavenPublication::class.java) { publication ->
-                    project.afterEvaluate {
+            // Publication
+            project.extensions.configure<PublishingExtension>("publishing") { publish ->
+                publish.publications { publications ->
+                    publications.create("srcArtifact", MavenPublication::class.java) { publication ->
                         publication.groupId = project.group.toString()
                         publication.artifactId = project.name
                         publication.version = project.version.toString()
                         publication.artifact(srcDistZip)
-                    }
 
-                    publication.pom.withXml { xml ->
-                        println("Adding transitive dependencies to pom file...")
-                        val dependenciesNode = xml.asNode().appendNode("dependencies")
-                        resolvedRtlConfig.dependencies.forEach { dependency ->
-                            println("- ${dependency.groupId}:${dependency.artifactId}:${dependency.version}:src@zip")
-                            dependenciesNode.appendNode("dependency").apply {
-                                appendNode("groupId", dependency.groupId)
-                                appendNode("artifactId", dependency.artifactId)
-                                appendNode("version", dependency.version)
-                                appendNode("classifier", dependency.classifier)
-                                appendNode("type", dependency.fileType)
+                        publication.pom.withXml { xml ->
+                            println("Adding transitive dependencies to pom file...")
+                            val dependenciesNode = xml.asNode().appendNode("dependencies")
+                            resolvedRtlConfig.dependencies.forEach { dependency ->
+                                println("- ${dependency.groupId}:${dependency.artifactId}:${dependency.version}:src@zip")
+                                dependenciesNode.appendNode("dependency").apply {
+                                    appendNode("groupId", dependency.groupId)
+                                    appendNode("artifactId", dependency.artifactId)
+                                    appendNode("version", dependency.version)
+                                    appendNode("classifier", dependency.classifier)
+                                    appendNode("type", dependency.fileType)
+                                }
                             }
                         }
-                    }
 
+                    }
                 }
             }
         }
