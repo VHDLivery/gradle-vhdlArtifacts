@@ -24,6 +24,10 @@ and publishing mechanisms tailored for VHDL projects.
     - The `src` directory under a structured path (`libName/modName`).
     - A `readme.md` file.
 
+- **Release Check**:
+  - Checks whether the version of each dependency ends with `-RELEASE`.
+  - Checks whether the version of the current project has been set to `-RELEASE`.
+
 - **Maven Publishing**:
   - Automates the publication of the source distribution ZIP with transitive dependency information included in the POM file.
 

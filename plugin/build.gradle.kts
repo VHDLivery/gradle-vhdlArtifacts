@@ -6,7 +6,7 @@ plugins {
 }
 
 group = "io.github.vhdlivery.vhdlArtifacts"
-version = "1.1.0"
+version = "1.2.0"
 
 repositories {
     // Use Maven Central for resolving dependencies.

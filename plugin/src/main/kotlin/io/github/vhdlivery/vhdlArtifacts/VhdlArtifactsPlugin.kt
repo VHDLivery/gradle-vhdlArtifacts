@@ -8,6 +8,7 @@ import org.gradle.api.provider.Provider
 import org.gradle.api.tasks.bundling.Zip
 import org.gradle.api.publish.PublishingExtension
 import org.gradle.api.publish.maven.MavenPublication
+import org.gradle.api.GradleException
 
 class VhdlArtifactsPlugin: Plugin<Project> {
 
@@ -23,7 +24,11 @@ class VhdlArtifactsPlugin: Plugin<Project> {
         project.pluginManager.apply("distribution")
         project.pluginManager.apply("maven-publish")
 
-        fun createConfig(name : String, description : String, transitive : Boolean) : org.gradle.api.artifacts.Configuration {
+        fun createConfig(
+            name: String,
+            description: String,
+            transitive: Boolean
+        ): org.gradle.api.artifacts.Configuration {
             return project.configurations.create(name) {
                 it.isCanBeResolved = true
                 it.isCanBeConsumed = false
@@ -78,7 +83,7 @@ class VhdlArtifactsPlugin: Plugin<Project> {
             checkDependencyConflicts()
         }
 
-        fun unzipArtifacts(config: VhdlConfiguration, outputDir : Provider<Directory>) {
+        fun unzipArtifacts(config: VhdlConfiguration, outputDir: Provider<Directory>) {
             println("Unzipping ${config.name} dependencies into 'build/dependency'")
             config.artifacts.forEach { artifact ->
                 project.copy {
@@ -173,5 +178,60 @@ class VhdlArtifactsPlugin: Plugin<Project> {
             }
         }
 
+        project.afterEvaluate {
+
+            val releaseCheck = project.tasks.register("releaseCheck") {
+                it.group = "VHDL Artifacts Plugin"
+                it.description = "Validate if the project is ready for a release"
+
+                // Collect snapshots from dependencies
+                val vhdlConfigurations: MutableList<VhdlConfiguration> = mutableListOf(
+                    resolvedRtlConfig,
+                    resolvedSimConfig
+                )
+                val snapshots: MutableList<String> = mutableListOf()
+                vhdlConfigurations.forEach {configuration ->
+                    configuration.dependencies.forEach { dependency ->
+                        if (dependency.version.uppercase().endsWith("-SNAPSHOT")) {
+                            val snapshot = "${dependency.groupId}:${dependency.artifactId}:${dependency.version}"
+                            snapshots.add(snapshot)
+                        }
+                    }
+                }
+
+                // Collect version
+                val version = project.version.toString()
+
+                it.doLast {
+
+                    var error = false
+
+                    println("Validate project for release...")
+
+                    // Rule 1: Dependencies with 'snapshot' as a suffix are not allowed for a release
+                    if (snapshots.isNotEmpty()) {
+                        println("❌ Snapshots found:")
+                        snapshots.forEach { snapshot ->
+                            println("- $snapshot")
+                        }
+                        error = true
+                    } else {
+                        println("✅ Version of each dependency ends with `-RELEASE`.")
+                    }
+
+                    //Rule 2: Release version must have `-RELEASE` as suffix
+                    if (version.uppercase().endsWith("-RELEASE")) {
+                        println("✅ Project version ends with `-RELEASE`.")
+                    } else {
+                        println("❌ Project version must end with `-RELEASE`.")
+                        error = true
+                    }
+
+                    if (error) {
+                        throw GradleException("An error occurred during the release check.")
+                    }
+                }
+            }
+        }
     }
 }
