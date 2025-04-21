@@ -19,10 +19,6 @@ class VhdlArtifactsPlugin: Plugin<Project> {
         extension.moduleName.convention(project.name) // Default to project name
         extension.libraryName.convention(project.parent?.name ?: "work") // Default to "work" if parent is null
 
-        project.afterEvaluate {
-            project.logger.lifecycle("Library = ${extension.libraryName.get()}")
-        }
-
         // Apply required plugins
         project.pluginManager.apply("distribution")
         project.pluginManager.apply("maven-publish")
