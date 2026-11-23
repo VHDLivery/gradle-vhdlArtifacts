@@ -2,58 +2,46 @@ package io.github.vhdlivery.vhdlArtifacts
 
 import org.gradle.api.Project
 import org.gradle.api.artifacts.Configuration
-import java.io.File
+import org.gradle.api.artifacts.ExternalModuleDependency
+import org.gradle.api.artifacts.component.ModuleComponentIdentifier
+import org.gradle.api.provider.Provider
 
-class VhdlConfiguration (
-   val name : String
-) {
-
-    val dependencies : MutableList<VhdlDependency> = mutableListOf()
-    val artifacts : MutableList<File> = mutableListOf()
-    val classifier = "src"
-    val fileType = "zip"
-    var transitive = false
-
-    fun dependencies() : MutableList<VhdlDependency> {
-        return dependencies
-    }
-
-    fun artifacts() : MutableList<File> {
-        return artifacts
-    }
-
-    fun transitive() : Boolean {
-        return transitive
-    }
-
-    fun resolve(project: Project, config: Configuration) {
-
-        transitive = config.isTransitive()
-
-        // Collect the artifacts to add
-        val dependenciesToAdd = mutableListOf<org.gradle.api.artifacts.Dependency>()
-        config.allDependencies.forEach { dependency ->
-            dependenciesToAdd.add(project.dependencies.create(
-                "${dependency.group}:${dependency.name}:${dependency.version}:${classifier}@${fileType}"
-            ))
-        }
-
-        // Add the artifacts to the configuration after the iteration
-        //println("Adding implicit artifacts to configuration '${config.name}'")
-        dependenciesToAdd.forEach { dep ->
-            config.dependencies.add(dep)
-            //println("- ${dep}:${classifier}@${fileType}")
-        }
-
-        // Resolve artifacts
-        config.resolve().forEach { artifact ->
-            artifacts.add(artifact)
-        }
-
-        // Resolve dependencies
-        config.resolvedConfiguration.firstLevelModuleDependencies.forEach { dependency ->
-            dependencies.add(VhdlDependency(dependency, classifier, fileType))
+internal fun vhdlConfiguration(project: Project, name: String, transitive: Boolean): Configuration =
+    project.configurations.create(name) { configuration ->
+        configuration.isCanBeResolved = true
+        configuration.isCanBeConsumed = false
+        configuration.isTransitive = transitive
+        configuration.description = "VHDL source ZIP dependencies for $name"
+        // Configure the existing dependency, preserving exclusions and transitivity.
+        configuration.withDependencies { dependencies ->
+            dependencies.withType(ExternalModuleDependency::class.java).forEach { dependency ->
+                if (dependency.artifacts.isEmpty()) {
+                    dependency.artifact { artifact ->
+                        artifact.classifier = "src"
+                        artifact.type = "zip"
+                        artifact.extension = "zip"
+                    }
+                }
+            }
         }
     }
 
-}
+internal fun Configuration.moduleCoordinates(): Provider<List<String>> =
+    incoming.resolutionResult.rootComponent.map { root ->
+        val modules = linkedSetOf<String>()
+        val visited = mutableSetOf<org.gradle.api.artifacts.component.ComponentIdentifier>()
+        fun visit(component: org.gradle.api.artifacts.result.ResolvedComponentResult) {
+            if (!visited.add(component.id)) return
+            (component.id as? ModuleComponentIdentifier)?.let {
+                modules.add("${it.group}:${it.module}:${it.version}")
+            }
+            component.dependencies.forEach { dependency ->
+                when (dependency) {
+                    is org.gradle.api.artifacts.result.ResolvedDependencyResult -> visit(dependency.selected)
+                    is org.gradle.api.artifacts.result.UnresolvedDependencyResult -> throw dependency.failure
+                }
+            }
+        }
+        visit(root)
+        modules.toList()
+    }

@@ -1,19 +1,104 @@
-name: build-plugin
+name: Build and test plugin
 
-on: [push, pull_request]
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+  release:
+    types: [published]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name != 'release' && !startsWith(github.ref, 'refs/tags/') }}
 
 jobs:
   build:
+    name: Build and functional tests (Java 17)
     runs-on: ubuntu-latest
+    timeout-minutes: 20
+
     steps:
-    - name: Checkout sources
-      uses: actions/checkout@v4
-    - name: Setup Java
-      uses: actions/setup-java@v4
-      with:
-        distribution: 'temurin'
-        java-version: 17
-    - name: Setup Gradle
-      uses: gradle/actions/setup-gradle@v4
-    - name: Build with Gradle
-      run: ./gradlew build
+      - name: Checkout sources
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Gradle and validate wrapper
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          validate-wrappers: true
+
+      - name: Build and run all tests
+        run: ./gradlew build --configuration-cache --stacktrace --console=plain
+
+      - name: Upload test results and diagnostics
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results
+          path: |
+            plugin/build/reports/tests/test/
+            plugin/build/test-results/test/*.xml
+            plugin/build/reports/problems/
+            plugin/build/reports/configuration-cache/
+            build/reports/problems/
+            build/reports/configuration-cache/
+          if-no-files-found: warn
+          retention-days: 14
+
+      - name: Upload plugin JARs
+        uses: actions/upload-artifact@v4
+        with:
+          name: plugin-jars
+          path: plugin/build/libs/*.jar
+          if-no-files-found: error
+          retention-days: 14
+
+  publish:
+    name: Publish to Gradle Plugin Portal
+    needs: build
+    if: ${{ github.event_name == 'release' && github.event.action == 'published' && !github.event.release.prerelease }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout release sources
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Gradle and validate wrapper
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          validate-wrappers: true
+
+      - name: Verify release tag matches plugin version
+        env:
+          ORG_GRADLE_PROJECT_releaseTag: ${{ github.event.release.tag_name }}
+        run: ./gradlew :plugin:verifyReleaseTag --configuration-cache --stacktrace --console=plain
+
+      - name: Publish plugin
+        env:
+          GRADLE_PUBLISH_KEY: ${{ secrets.GRADLE_PUBLISH_KEY }}
+          GRADLE_PUBLISH_SECRET: ${{ secrets.GRADLE_PUBLISH_SECRET }}
+        run: |
+          if [ -z "$GRADLE_PUBLISH_KEY" ] || [ -z "$GRADLE_PUBLISH_SECRET" ]; then
+            echo "::error::Repository secrets GRADLE_PUBLISH_KEY and GRADLE_PUBLISH_SECRET are required."
+            exit 1
+          fi
+          ./gradlew :plugin:publishPlugins --no-configuration-cache --stacktrace --console=plain

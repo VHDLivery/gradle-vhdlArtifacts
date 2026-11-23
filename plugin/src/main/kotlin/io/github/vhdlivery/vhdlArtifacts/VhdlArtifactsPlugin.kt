@@ -1,234 +1,118 @@
 package io.github.vhdlivery.vhdlArtifacts
 
-import org.gradle.api.Project
 import org.gradle.api.Plugin
+import org.gradle.api.Project
+import org.gradle.api.artifacts.ExternalModuleDependency
 import org.gradle.api.distribution.DistributionContainer
-import org.gradle.api.file.Directory
-import org.gradle.api.provider.Provider
-import org.gradle.api.tasks.bundling.Zip
 import org.gradle.api.publish.PublishingExtension
 import org.gradle.api.publish.maven.MavenPublication
-import org.gradle.api.GradleException
+import org.gradle.api.publish.maven.tasks.PublishToMavenLocal
+import org.gradle.api.publish.maven.tasks.PublishToMavenRepository
+import org.gradle.api.tasks.bundling.Zip
 
-class VhdlArtifactsPlugin: Plugin<Project> {
-
+class VhdlArtifactsPlugin : Plugin<Project> {
     override fun apply(project: Project) {
-
         val extension = project.extensions.create("vhdlArtifacts", VhdlArtifactsExtension::class.java, project.objects)
-
-        // Set default values for properties if not provided
-        extension.moduleName.convention(project.name) // Default to project name
-        extension.libraryName.convention(project.parent?.name ?: "work") // Default to "work" if parent is null
-
-        // Apply required plugins
+        extension.moduleName.convention(project.name)
+        extension.libraryName.convention(project.parent?.name ?: "work")
         project.pluginManager.apply("distribution")
         project.pluginManager.apply("maven-publish")
 
-        fun createConfig(
-            name: String,
-            description: String,
-            transitive: Boolean
-        ): org.gradle.api.artifacts.Configuration {
-            return project.configurations.create(name) {
-                it.isCanBeResolved = true
-                it.isCanBeConsumed = false
-                it.isTransitive = transitive
-                it.description = description
+        val rtl = vhdlConfiguration(project, "rtl", true)
+        val sim = vhdlConfiguration(project, "sim", false)
+        val modules = rtl.moduleCoordinates().zip(sim.moduleCoordinates()) { a, b -> (a + b).distinct() }
+        val conflicts = project.tasks.register("checkVhdlDependencyConflicts", CheckVhdlConflicts::class.java) {
+            it.group = "VHDL Artifacts Plugin"
+            it.description = "Check RTL and simulation dependency versions for conflicts"
+            it.modules.set(modules)
+        }
+        // One writer owns the shared library/module tree. Both entry points use the
+        // same union so neither task can delete the other configuration's sources.
+        val extraction = project.tasks.register("unzipVhdlArtifacts", ExtractVhdlArtifacts::class.java) {
+            it.group = "VHDL Artifacts Plugin"
+            it.description = "Extract RTL and simulation dependencies into build/dependency"
+            it.archives.from(rtl, sim)
+            it.destination.set(project.layout.buildDirectory.dir("dependency"))
+            it.dependsOn(conflicts)
+        }
+        listOf("unzipRtlArtifacts", "unzipSimArtifacts").forEach { name ->
+            project.tasks.register(name) {
+                it.group = "VHDL Artifacts Plugin"
+                it.description = "Synchronize shared VHDL dependencies into build/dependency"
+                it.dependsOn(extraction)
             }
         }
 
-        // Configurations
-        val rtlConfig = createConfig(
-            name = "rtl",
-            description = "Custom Configuration for VHDL module source code artifacts used for RTL",
-            transitive = true
-        )
-
-        val simConfig = createConfig(
-            name = "sim",
-            description = "Custom Configuration for VHDL module source code artifacts used for RTL",
-            transitive = false
-        )
-
-        fun checkDependencyConflicts() {
-            val rtlDeps = rtlConfig.resolvedConfiguration.resolvedArtifacts
-            val simDeps = simConfig.resolvedConfiguration.resolvedArtifacts
-
-            val allDeps = rtlDeps + simDeps
-            val groupedByModule = allDeps.groupBy { "${it.moduleVersion.id.group}:${it.moduleVersion.id.name}" }
-
-            val conflictingDeps = groupedByModule.filter { (_, versions) ->
-                versions.map { it.moduleVersion.id.version }.toSet().size > 1
-            }
-
-            if (conflictingDeps.isNotEmpty()) {
-                project.logger.lifecycle("Dependency version conflicts detected:")
-                conflictingDeps.forEach { (module, versions) ->
-                    project.logger.lifecycle("Module: $module")
-                    versions.forEach { artifact ->
-                        project.logger.lifecycle(
-                            " - Version: ${artifact.moduleVersion.id.version}"
-                        )
-                    }
-                }
-                throw RuntimeException("Dependency conflicts detected. Resolve them to proceed.")
-            }
-        }
-
-        val resolvedRtlConfig = VhdlConfiguration("rtl")
-        val resolvedSimConfig = VhdlConfiguration("sim")
-        project.afterEvaluate {
-            resolvedRtlConfig.resolve(project, rtlConfig)
-            resolvedSimConfig.resolve(project, simConfig)
-            checkDependencyConflicts()
-        }
-
-        fun unzipArtifacts(config: VhdlConfiguration, outputDir: Provider<Directory>) {
-            println("Unzipping ${config.name} dependencies into 'build/dependency'")
-            config.artifacts.forEach { artifact ->
-                project.copy {
-                    it.from(project.zipTree(artifact.path)) { copySpec ->
-                        copySpec.eachFile { file ->
-                            file.path = file.path.split("/").drop(1).joinToString("/")
-                        }
-                    }
-                    it.into(outputDir)
+        val distributions = project.extensions.getByType(DistributionContainer::class.java)
+        distributions.create("src") { distribution ->
+            distribution.distributionBaseName.set(project.name)
+            distribution.distributionClassifier.set("src")
+            distribution.contents { content ->
+                content.into(extension.libraryName.zip(extension.moduleName) { library, module -> "$library/$module" }) {
+                    it.into("src") { sources -> sources.from(project.layout.projectDirectory.dir("src")) }
+                    it.from(project.layout.projectDirectory.file("readme.md"))
+                    it.from(project.layout.projectDirectory.file("README.md"))
                     it.includeEmptyDirs = false
                 }
             }
         }
+        val srcZip = project.tasks.named("srcDistZip", Zip::class.java)
 
-        val unzipRtlArtifacts = project.tasks.register("unzipRtlArtifacts") {
+        val releaseVersion = project.provider { project.version.toString() }
+        project.tasks.register("releaseCheck", CheckVhdlRelease::class.java) {
             it.group = "VHDL Artifacts Plugin"
-            it.description = "Unzip artifacts of config 'rtl' into 'build/dependency'"
-
-            val outputDir = project.layout.buildDirectory.dir("dependency")
-
-            it.inputs.files(resolvedRtlConfig.artifacts)
-            it.outputs.dir(outputDir)
-
-            unzipArtifacts(resolvedRtlConfig, outputDir)
+            it.description = "Require release versions for the project and all resolved dependencies"
+            it.releaseVersion.set(releaseVersion)
+            it.modules.set(modules)
+            it.publishing.set(false)
+            it.dependsOn(conflicts)
         }
-
-        val unzipSimArtifacts = project.tasks.register("unzipSimArtifacts") {
-            it.group = "VHDL Artifacts Plugin"
-            it.description = "Unzip artifacts of config 'sim' into 'build/dependency'"
-
-            val outputDir = project.layout.buildDirectory.dir("dependency")
-
-            it.inputs.files(resolvedSimConfig.artifacts)
-            it.outputs.dir(outputDir)
-
-            unzipArtifacts(resolvedSimConfig, outputDir)
+        val publicationCheck = project.tasks.register("checkVhdlPublication", CheckVhdlRelease::class.java) {
+            it.releaseVersion.set(releaseVersion)
+            it.modules.set(modules)
+            it.publishing.set(true)
+            it.dependsOn(conflicts)
         }
+        project.tasks.withType(PublishToMavenRepository::class.java).configureEach { it.dependsOn(publicationCheck) }
+        project.tasks.withType(PublishToMavenLocal::class.java).configureEach { it.dependsOn(publicationCheck) }
 
-        project.afterEvaluate {
-            // Distribution
-            val distributions = project.extensions.getByType(DistributionContainer::class.java)
-
-            val srcDistribution = distributions.create("src") { dist ->
-                dist.distributionBaseName.set(project.name)
-                dist.distributionClassifier.set("src")
-                dist.contents{ content ->
-                    val destPath = "${extension.libraryName.get()}/${extension.moduleName.get()}"
-                    content.into(destPath) {
-                        // Place the entire 'src' directory into the 'src' folder within the distribution
-                        it.into("src") {
-                            it.from("src")
-                        }
-                        // Add the readme.md file to the root of the distribution
-                        it.from("readme.md")
-                        it.includeEmptyDirs = false
-                    }
+        // Keep only dependency values in the POM action, never a Configuration or Project.
+        val pomDependencies = project.objects.listProperty(VhdlDependency::class.java)
+        pomDependencies.set(project.provider {
+            rtl.allDependencies.withType(ExternalModuleDependency::class.java).flatMap { dependency ->
+                val artifacts = dependency.artifacts.toList()
+                val exclusions = if (!dependency.isTransitive) listOf("*" to "*") else
+                    dependency.excludeRules.map { (it.group ?: "*") to (it.module ?: "*") }
+                if (artifacts.isEmpty()) listOf(VhdlDependency(
+                    dependency.group.orEmpty(), dependency.name, dependency.version.orEmpty(), "src", "zip", exclusions
+                )) else artifacts.map { artifact ->
+                    VhdlDependency(dependency.group.orEmpty(), dependency.name, dependency.version.orEmpty(),
+                        artifact.classifier.orEmpty(), artifact.type, exclusions)
                 }
             }
-
-            val srcDistZip = project.tasks.named(srcDistribution.name + "DistZip", Zip::class.java) {
-                it.archiveFileName.set("${srcDistribution.distributionBaseName.get()}-" +
-                        "${project.version}-${srcDistribution.distributionClassifier.get()}.zip")
-                it.destinationDirectory.set(project.layout.buildDirectory.dir("distributions"))
-            }
-
-            // Publication
-            project.extensions.configure<PublishingExtension>("publishing") { publish ->
-                publish.publications { publications ->
-                    publications.create("srcArtifact", MavenPublication::class.java) { publication ->
-                        publication.groupId = project.group.toString()
-                        publication.artifactId = project.name
-                        publication.version = project.version.toString()
-                        publication.artifact(srcDistZip)
-
-                        publication.pom.withXml { xml ->
-                            println("Adding transitive dependencies to pom file...")
-                            val dependenciesNode = xml.asNode().appendNode("dependencies")
-                            resolvedRtlConfig.dependencies.forEach { dependency ->
-                                println("- ${dependency.groupId}:${dependency.artifactId}:${dependency.version}:src@zip")
-                                dependenciesNode.appendNode("dependency").apply {
-                                    appendNode("groupId", dependency.groupId)
-                                    appendNode("artifactId", dependency.artifactId)
-                                    appendNode("version", dependency.version)
-                                    appendNode("classifier", dependency.classifier)
-                                    appendNode("type", dependency.fileType)
+        })
+        val publishing = project.extensions.getByType(PublishingExtension::class.java)
+        publishing.publications.create("srcArtifact", MavenPublication::class.java) { publication ->
+            publication.artifactId = project.name
+            publication.artifact(srcZip)
+            publication.pom.withXml { xml ->
+                val dependencies = xml.asNode().appendNode("dependencies")
+                pomDependencies.get().forEach { dependency ->
+                    dependencies.appendNode("dependency").apply {
+                        appendNode("groupId", dependency.groupId)
+                        appendNode("artifactId", dependency.artifactId)
+                        appendNode("version", dependency.version)
+                        if (dependency.classifier.isNotEmpty()) appendNode("classifier", dependency.classifier)
+                        appendNode("type", dependency.fileType)
+                        if (dependency.exclusions.isNotEmpty()) {
+                            val exclusions = appendNode("exclusions")
+                            dependency.exclusions.forEach { (group, module) ->
+                                exclusions.appendNode("exclusion").apply {
+                                    appendNode("groupId", group)
+                                    appendNode("artifactId", module)
                                 }
                             }
                         }
-
-                    }
-                }
-            }
-        }
-
-        project.afterEvaluate {
-
-            val releaseCheck = project.tasks.register("releaseCheck") {
-                it.group = "VHDL Artifacts Plugin"
-                it.description = "Validate if the project is ready for a release"
-
-                // Collect snapshots from dependencies
-                val vhdlConfigurations: MutableList<VhdlConfiguration> = mutableListOf(
-                    resolvedRtlConfig,
-                    resolvedSimConfig
-                )
-                val snapshots: MutableList<String> = mutableListOf()
-                vhdlConfigurations.forEach {configuration ->
-                    configuration.dependencies.forEach { dependency ->
-                        if (dependency.version.uppercase().endsWith("-SNAPSHOT")) {
-                            val snapshot = "${dependency.groupId}:${dependency.artifactId}:${dependency.version}"
-                            snapshots.add(snapshot)
-                        }
-                    }
-                }
-
-                // Collect version
-                val version = project.version.toString()
-
-                it.doLast {
-
-                    var error = false
-
-                    println("Validate project for release...")
-
-                    // Rule 1: Dependencies with 'snapshot' as a suffix are not allowed for a release
-                    if (snapshots.isNotEmpty()) {
-                        println("❌ Snapshots found:")
-                        snapshots.forEach { snapshot ->
-                            println("- $snapshot")
-                        }
-                        error = true
-                    } else {
-                        println("✅ Version of each dependency ends with `-RELEASE`.")
-                    }
-
-                    //Rule 2: Release version must have `-RELEASE` as suffix
-                    if (version.uppercase().endsWith("-RELEASE")) {
-                        println("✅ Project version ends with `-RELEASE`.")
-                    } else {
-                        println("❌ Project version must end with `-RELEASE`.")
-                        error = true
-                    }
-
-                    if (error) {
-                        throw GradleException("An error occurred during the release check.")
                     }
                 }
             }

@@ -12,7 +12,7 @@ and publishing mechanisms tailored for VHDL projects.
 
 - **Dependency Conflict Detection**:
   - Automatically checks for conflicting versions between the `rtl` and `sim` configurations
-  during the project evaluation phase. If conflicts are found, the build will fail with detailed logs.
+  when extracting dependencies, validating a release, or publishing. Unrelated tasks do not resolve dependencies.
 
 - **Artifact Unzipping**:
   - Tasks to extract dependencies into the `build/dependency` directory:
@@ -22,11 +22,12 @@ and publishing mechanisms tailored for VHDL projects.
 - **Distribution Packaging**:
   - Creates a source distribution ZIP (`srcDistZip`) containing:
     - The `src` directory under a structured path (`libName/modName`).
-    - A `readme.md` file.
+    - A `readme.md` or `README.md` file.
 
 - **Release Check**:
-  - Checks whether the version of each dependency ends with `-RELEASE`.
-  - Checks whether the version of the current project has been set to `-RELEASE`.
+  - Checks whether every resolved dependency, including transitive RTL dependencies, ends with `-RELEASE`.
+  - Checks whether the version of the current project ends with `-RELEASE`.
+  - Publishing a `-RELEASE` version automatically runs the checks. Snapshot publishing remains available.
 
 - **Maven Publishing**:
   - Automates the publication of the source distribution ZIP with transitive dependency information included in the POM file.
@@ -87,7 +88,7 @@ To use the plugin, include it in your `build.gradle` file:
 
 ``` groovy
 plugins {
-  id 'io.github.vhdlivery.vhdlArtifacts' version "1.0.0"
+  id 'io.github.vhdlivery.vhdlArtifacts' version "1.2.1"
 }
 ```
 
@@ -108,6 +109,8 @@ The following properties are supported:
 | moduleName  | string | Project Name                  | Overwrite the module name used for the artifact  |
 | libraryName | string | Parent Project Name or "work" | Overwrite the library name used for the artifact |
 
+Both extraction entry points synchronize the union of `rtl` and `sim` dependencies into the shared `build/dependency/<library>/<module>` tree through one task, `unzipVhdlArtifacts`. An artifact present in both configurations is extracted only once. Stale sources are removed without either configuration deleting sources required by the other. `rtl` remains transitive and `sim` remains nontransitive.
+
 ### Declaring Dependencies
 
 Two configurations are provided ready for use within the dependency clause, they do not have to be defined manually.
@@ -122,12 +125,12 @@ dependencies {
 ### Tasks
 
 1. ***Unzipping Artifacts***:
-  - `unzipRtlArtifacts`: Unzips `rtl` configuration artifacts into `build/dependency`
-  - `unzipSimArtifacts`: Unzips `sim` configuration artifacts into `build/dependency`
+  - `unzipRtlArtifacts`: Synchronizes shared RTL and simulation artifacts into `build/dependency`
+  - `unzipSimArtifacts`: Synchronizes shared RTL and simulation artifacts into `build/dependency`
 2. ***Source Distribution***:
-  - `srcDistZip`: Generates a ZIP containing the `src` directory and the `readme.md` file:
+  - `srcDistZip`: Generates a ZIP containing the `src` directory and the `readme.md` or `README.md` file:
     ``` bash
-    build/distribution/{project-name}-{project-version}-src.zip
+    build/distributions/{project-name}-{project-version}-src.zip
     ```
     
 ### Publishing
@@ -158,6 +161,21 @@ Run the publishing task:
 ```
 
 ---
+
+
+## Releasing this plugin
+
+The GitHub workflow builds and tests every push and pull request. Publishing a stable GitHub Release triggers a fresh build of the release commit and, after success, publishes this plugin to the Gradle Plugin Portal. The release tag (for example `v1.2.1`) must match `version` in `plugin/build.gradle.kts`; a mismatch stops publication. Tag pushes and manual workflow runs only build and test. Draft releases and prereleases do not publish to the Plugin Portal.
+
+Configure these GitHub repository secrets using the API credentials of a Plugin Portal account authorized to publish this plugin:
+
+- `GRADLE_PUBLISH_KEY`
+- `GRADLE_PUBLISH_SECRET`
+
+Generate the credentials in your [Gradle Plugin Portal profile](https://plugins.gradle.org/user/login). See the [Gradle publishing documentation](https://docs.gradle.org/current/userguide/publishing_gradle_plugins.html#account_setup).
+
+Commit and push the release changes first. In GitHub, open **Releases → Draft a new release**, select an existing matching tag or create `v1.2.1` on the release commit, and choose **Publish release**. Leave **Set as a pre-release** unchecked. You can save a draft first; only publishing the stable release starts the portal publication.
+
 
 ## License
 
